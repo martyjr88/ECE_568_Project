@@ -38,7 +38,26 @@ uint8_t readnumber(void) {
   return num;
 }
 
-void loop()                     // run over and over again
+/* Interfacing code with the fingerprint scanner uses modified code from the
+provided Adafruit Fingerprint sensor repository. The licensing can be seen below*/
+
+/***************************************************
+  This is an example sketch for our optical Fingerprint sensor
+
+  Designed specifically to work with the Adafruit Fingerprint sensor
+  ----> http://www.adafruit.com/products/751
+
+  These displays use TTL Serial to communicate, 2 pins are required to
+  interface
+  Adafruit invests time and resources providing this open source code,
+  please support Adafruit and open-source hardware by purchasing
+  products from Adafruit!
+
+  Written by Limor Fried/Ladyada for Adafruit Industries.
+  BSD license, all text above must be included in any redistribution
+ ****************************************************/
+
+void loop()
 {
   Serial.println("[Match] Place Finger on Sensor and Press 1 \n[Enroll] Press 2");
   mode = readnumber();
