@@ -1,3 +1,11 @@
+#include <MFRC522v2.h>
+#include <MFRC522DriverSPI.h>
+#include <MFRC522DriverPinSimple.h>
+#include <MFRC522Debug.h>
+#include <Adafruit_Fingerprint.h>
+#include <HardwareSerial.h>
+#include <SPI.h>
+#include <SD.h>
 
 enum State {
   IDLE,
@@ -15,7 +23,6 @@ enum State {
 State currentState = IDLE;
 
 struct UserData {
-  String rfid;
   uint8_t fingerprintKey;
   String password;
   void clear() {
@@ -24,40 +31,35 @@ struct UserData {
   }
 };
 
+#define RX_PIN 7  // Connect to fingerprint sensor's TX
+#define TX_PIN 8  // Connect to fingerprint sensor's RX
+#define SD_MISO 32
+#define SD_MOSI 33
+#define SD_SCK  25
+#define SD_CS   26
+
+Adafruit_Fingerprint finger = Adafruit_Fingerprint(&Serial2);
+uint8_t id;
+uint8_t pressed1;
 UserData currentUser;
+File file;
+String rfid;
 
 String check_rfid();
-bool check_rfid_sd(String rfid, UserData &user);
-bool check_password(String pin, UserData &user);
-bool check_fingerprint(uint8_t key, UserData &user);
+bool check_rfid_sd(File &file, String rfid, UserData &user);
+bool check_password(File &file, String pin, UserData &user);
+bool check_fingerprint(File &file, String rfid, UserData &user);
 bool send_key_to_server();
 bool admin_pass();
-bool add_user_sd(String rfid, UserData &user);
+bool add_user_sd(File &file,String rfid,UserData &user);
 bool delete_user_sd(String rfid);
-
-/*---------rfid stuff------------*/
-#include <MFRC522v2.h>
-#include <MFRC522DriverSPI.h>
-#include <MFRC522DriverPinSimple.h>
-#include <MFRC522Debug.h>
-#include <Adafruit_Fingerprint.h>
-#include <HardwareSerial.h>
-
 MFRC522DriverPinSimple ss_pin(27);
 MFRC522DriverSPI driver{ss_pin};
 MFRC522 mfrc522{driver};
-
-Adafruit_Fingerprint finger = Adafruit_Fingerprint(&Serial2);
- 
-#define RX_PIN 7  // Connect to fingerprint sensor's TX
-#define TX_PIN 8  // Connect to fingerprint sensor's RX
-
-uint8_t id;
-uint8_t pressed1;
 uint8_t getFingerprintEnroll();
 uint8_t getFingerprintID();
 int getFingerprintIDez();
-
+ 
 uint8_t readnumber(void) {
   uint8_t num = 0;
 
@@ -67,7 +69,6 @@ uint8_t readnumber(void) {
   }
   return num;
 }
-/*------------------------------*/
 
 String readSerialLine() {
   while (!Serial.available());
@@ -79,6 +80,16 @@ void setup() {
   currentState = IDLE;
   currentUser.clear();
   Serial.print("Beginning Setup\n");
+  /*-----------SD SETUP---------------------*/
+  SPIClass sdSPI(HSPI);
+  sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if(!SD.begin(SD_CS, sdSPI)){
+    Serial.println("SD Card Mount Failed!");
+  }
+  Serial.println("SD Card initialized :)");
+  uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+  Serial.printf("SD card size: %lluMB\n", cardSize);
+  file = SD.open("/POGGERS.csv", FILE_WRITE);
   /* ----------RFID SETUP-------------------*/
   SPI.begin(5, 21, 19, 27); 
   mfrc522.PCD_Init();
@@ -126,8 +137,8 @@ void loop() {
       break;
     }
     case RFID: {
-      String rfid = check_rfid();
-      if (check_rfid_sd(rfid, currentUser)) {
+      rfid = check_rfid();
+      if (check_rfid_sd(file, rfid, currentUser)) {
         currentState = PASSWORD;
       } else {
         currentState = FAILURE;
@@ -136,8 +147,8 @@ void loop() {
     }
     case PASSWORD: {
       Serial.println("Enter 6-digit PIN:");
-      String pin = readSerialLine();
-      if (check_password(pin, currentUser)) {
+      currentUser.password = readSerialLine();
+      if (check_password(file, rfid, currentUser)) {
         currentState = FINGERPRINT;
       } else {
         currentState = FAILURE;
@@ -149,11 +160,11 @@ void loop() {
       Serial.println("Place Finger on Sensor and Press 1");
       pressed1 = readnumber();
       if (pressed1 == 1){
-        fpKey = getFingerprintID();
+        currentUser.fingerprintKey = getFingerprintID();
         delay(100);  
       }
 
-      if (check_fingerprint(fpKey, currentUser)) {
+      if (check_fingerprint(file, rfid, currentUser)) {
         currentState = UNLOCK;
       } else {
         currentState = FAILURE;
@@ -197,7 +208,6 @@ void loop() {
     case EDIT_ADD_USER: {
       Serial.println("Tap new user's RFID tag");
       String rfid = check_rfid();
-      currentUser.rfid = rfid;
  
       Serial.println("Enter new user's 6-digit PIN:");
       currentUser.password = readSerialLine();
@@ -218,7 +228,7 @@ void loop() {
         Serial.println("Failed to add user");
       }
       /*-------------------------------------------------*/
-      else if (add_user_sd(rfid, currentUser)) {
+      else if (add_user_sd(file, rfid, currentUser)) {
         Serial.println("User successfully added");
         currentState = IDLE;
       } else {
@@ -263,24 +273,6 @@ String check_rfid() {
   return rfid_string; //std::to_string(mfrc522.uid); // input into serial for now
 }
 
-bool check_rfid_sd(String rfid, UserData &user) {
-  if (rfid == "12345") { // also temporary, replace with call for checking the sd card
-    user.fingerprintKey = 1;
-    user.password = "123456";
-    return true;
-  }
-return true;
-  // return false;
-}
-
-bool check_password(String pin, UserData &user) {
-  return pin == user.password;
-}
-
-bool check_fingerprint(uint8_t key, UserData &user) {
-  return key == user.fingerprintKey;
-}
-
 bool send_key_to_server() {
   delay(1000); //call to send some sort of success key to server here
   return true;
@@ -289,11 +281,6 @@ bool send_key_to_server() {
 bool admin_pass() {
   String pass = readSerialLine();
   return pass == "admin"; // the admin password
-}
-
-bool add_user_sd(String rfid, UserData &user) {
-  // call to add new user to sd here
-  return true;
 }
 
 bool delete_user_sd(String rfid) {
@@ -528,3 +515,77 @@ int getFingerprintIDez() {
   return finger.fingerID;
 }
 /*----------------------------------------------------------------------------*/
+
+/*---------------------------SD FUNCTIONS-------------------------------------*/
+bool read(File &file, String pin, UserData &user) {
+  if (!file) {
+    Serial.println("File not open!");
+    return false;
+  }
+
+  file.seek(0); // Start from beginning
+
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    line.trim(); // Clean up extra \r or spaces
+
+    int firstComma = line.indexOf(',');
+    int secondComma = line.indexOf(',', firstComma + 1);
+
+    if (firstComma == -1 || secondComma == -1) {
+      continue; // Bad/malformed line, skip
+    }
+
+    // Extract columns
+    String col1 = line.substring(0, firstComma);          // PIN
+    String col2 = line.substring(firstComma + 1, secondComma); // fingerprintKey
+    String col3 = line.substring(secondComma + 1);         // password
+
+    if (col1 == pin) {
+      // Fill in the user struct
+      user.fingerprintKey = (uint8_t)col2.toInt(); // Convert string to int safely
+      user.password = col3;
+      return true; // Found and populated
+    }
+  }
+  return false; // Not found
+}
+
+bool check_rfid_sd(File &file,String rfid, UserData &user) {
+  return(read(file,rfid,user)); // will tell you if RFID IS IN THERE
+}
+
+bool check_fingerprint(File &file,String rfid, UserData &user) {
+  UserData user2;
+  bool worked = read(file,rfid,user2);
+  if(worked) {
+    if(user2.fingerprintKey == user.fingerprintKey) return true;
+  }
+  return false;
+}
+
+
+bool check_password(File &file, String pin, UserData &user) {
+  UserData user2;
+  bool worked = read(file,pin,user2);
+  if(worked) {
+    if(user2.password == user.password) return true;
+  }
+  return false;
+}
+
+bool add_user_sd(File &file,String rfid,UserData &user) {
+  String strNumber = String(user.fingerprintKey);
+  if (file) {
+    file.print(RFID);
+    file.print(",");   // Add comma if not last column
+    file.print(strNumber);
+    file.print(",");   // Add comma if not last column
+    file.print(user.password);
+    Serial.println("WORKED LIL BRO");
+    file.println();    // Newline if third column
+    file.flush(); // Force write to SD card
+    return true;
+  }
+  return false;
+}
