@@ -15,10 +15,10 @@ enum State {
 State currentState = IDLE;
 
 struct UserData {
-  String fingerprintKey;
+  int fingerprintKey;
   String password;
   void clear() {
-    fingerprintKey = "";
+    fingerprintKey = -1;
     password = "";
   }
 };
@@ -28,7 +28,7 @@ UserData currentUser;
 String check_rfid();
 bool check_rfid_sd(String rfid, UserData &user);
 bool check_password(String pin, UserData &user);
-String get_fingerprint();
+int get_fingerprint();
 bool check_fingerprint(String key, UserData &user);
 bool send_key_to_server();
 bool admin_pass();
@@ -88,7 +88,7 @@ void loop() {
     }
     case FINGERPRINT: {
       Serial.println("Scan fingerprint");
-      String fpKey = get_fingerprint();
+      int fpKey = get_fingerprint();
       if (check_fingerprint(fpKey, currentUser)) {
         currentState = UNLOCK;
       } else {
@@ -169,7 +169,7 @@ String check_rfid() {
 
 bool check_rfid_sd(String rfid, UserData &user) {
   if (rfid == "12345") { // also temporary, replace with call for checking the sd card
-    user.fingerprintKey = "abcd";
+    user.fingerprintKey = 57;
     user.password = "123456";
     return true;
   }
@@ -180,12 +180,13 @@ bool check_password(String pin, UserData &user) {
   return pin == user.password;
 }
 
-String get_fingerprint() {
-  Serial.println("Scan Fingerprint"); // input into serial for now
-  return readSerialLine();
+int get_fingerprint() {
+  Serial.println("Scan Fingerprint"); // input into serial for now, change to fingerprint call
+  delay(1000);
+  return 57;
 }
 
-bool check_fingerprint(String key, UserData &user) {
+bool check_fingerprint(int key, UserData &user) {
   return key == user.fingerprintKey;
 }
 
