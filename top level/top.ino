@@ -27,9 +27,9 @@ UserData currentUser;
 
 String check_rfid();
 bool check_rfid_sd(String rfid, UserData &user);
-bool check_password(String pin, UserData &user);
+bool check_password(File &file, String pin, UserData &user);
 int get_fingerprint();
-bool check_fingerprint(String key, UserData &user);
+bool check_fingerprint(File &file,String rfid, UserData &user);
 bool send_key_to_server();
 bool admin_pass();
 bool add_user_sd(String rfid, UserData &user);
