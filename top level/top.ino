@@ -32,6 +32,7 @@ int get_fingerprint();
 bool check_fingerprint(File &file,String rfid, UserData &user);
 bool send_key_to_server();
 bool admin_pass();
+bool read(File &file, String pin, UserData &user);
 bool add_user_sd(String rfid, UserData &user);
 bool delete_user_sd(String rfid);
 
