@@ -44,6 +44,7 @@ uint8_t pressed1;
 UserData currentUser;
 File file;
 String rfid;
+SPIClass sdSPI(HSPI);
 
 String check_rfid();
 bool check_rfid_sd(File &file, String rfid, UserData &user);
@@ -59,6 +60,7 @@ MFRC522 mfrc522{driver};
 uint8_t getFingerprintEnroll();
 uint8_t getFingerprintID();
 int getFingerprintIDez();
+bool read_sd(File &file, String pin, UserData &user);
  
 uint8_t readnumber(void) {
   uint8_t num = 0;
@@ -81,7 +83,7 @@ void setup() {
   currentUser.clear();
   Serial.print("Beginning Setup\n");
   /*-----------SD SETUP---------------------*/
-  SPIClass sdSPI(HSPI);
+
   sdSPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
   if(!SD.begin(SD_CS, sdSPI)){
     Serial.println("SD Card Mount Failed!");
@@ -112,6 +114,17 @@ void setup() {
   }
   Serial.print("Setup Complete\n");
   /*--------------------------------------------*/
+
+  file.close();
+  file = SD.open("/POGGERS.csv", FILE_WRITE);
+  UserData temp_user;
+  temp_user.fingerprintKey = 69;
+  temp_user.password = "BadPassword";
+  bool worked = add_user_sd(file,"4567", temp_user);
+  Serial.printf("DID IT WORK : %d \n", worked);
+
+
+
 }
 
 
@@ -138,6 +151,10 @@ void loop() {
     }
     case RFID: {
       rfid = check_rfid();
+      file.close(); // close it
+      Serial.println("Line 143");
+      file = SD.open("/POGGERS.csv", FILE_READ);
+        
       if (check_rfid_sd(file, rfid, currentUser)) {
         currentState = PASSWORD;
       } else {
@@ -186,7 +203,7 @@ void loop() {
     }
     case EDIT_USERS: {
       Serial.println("Enter admin password:");
-      if (admin_pass()) {
+      if (1){//admin_pass()) 
         Serial.println("Press 1 to add user, 2 to delete user:");
         while (!Serial.available());
         char adminEntry = Serial.read();
@@ -517,15 +534,17 @@ int getFingerprintIDez() {
 /*----------------------------------------------------------------------------*/
 
 /*---------------------------SD FUNCTIONS-------------------------------------*/
-bool read(File &file, String pin, UserData &user) {
+bool read_sd(File &file, String pin, UserData &user) {
   if (!file) {
     Serial.println("File not open!");
     return false;
   }
 
+  // Serial.println("Line 528");
   file.seek(0); // Start from beginning
-
+  // Serial.println("Line 530");
   while (file.available()) {
+    // Serial.println("Line 532");
     String line = file.readStringUntil('\n');
     line.trim(); // Clean up extra \r or spaces
 
@@ -541,6 +560,7 @@ bool read(File &file, String pin, UserData &user) {
     String col2 = line.substring(firstComma + 1, secondComma); // fingerprintKey
     String col3 = line.substring(secondComma + 1);         // password
 
+    Serial.println("After reading the col");
     if (col1 == pin) {
       // Fill in the user struct
       user.fingerprintKey = (uint8_t)col2.toInt(); // Convert string to int safely
@@ -548,16 +568,17 @@ bool read(File &file, String pin, UserData &user) {
       return true; // Found and populated
     }
   }
+  // Serial.println("RETURN FALSE");
   return false; // Not found
 }
 
 bool check_rfid_sd(File &file,String rfid, UserData &user) {
-  return(read(file,rfid,user)); // will tell you if RFID IS IN THERE
+  return(read_sd(file,rfid,user)); // will tell you if RFID IS IN THERE
 }
 
 bool check_fingerprint(File &file,String rfid, UserData &user) {
   UserData user2;
-  bool worked = read(file,rfid,user2);
+  bool worked = read_sd(file,rfid,user2);
   if(worked) {
     if(user2.fingerprintKey == user.fingerprintKey) return true;
   }
@@ -567,7 +588,7 @@ bool check_fingerprint(File &file,String rfid, UserData &user) {
 
 bool check_password(File &file, String pin, UserData &user) {
   UserData user2;
-  bool worked = read(file,pin,user2);
+  bool worked = read_sd(file,pin,user2);
   if(worked) {
     if(user2.password == user.password) return true;
   }
@@ -577,7 +598,7 @@ bool check_password(File &file, String pin, UserData &user) {
 bool add_user_sd(File &file,String rfid,UserData &user) {
   String strNumber = String(user.fingerprintKey);
   if (file) {
-    file.print(RFID);
+    file.print(rfid);
     file.print(",");   // Add comma if not last column
     file.print(strNumber);
     file.print(",");   // Add comma if not last column
@@ -589,3 +610,4 @@ bool add_user_sd(File &file,String rfid,UserData &user) {
   }
   return false;
 }
+
