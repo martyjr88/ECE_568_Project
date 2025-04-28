@@ -330,7 +330,6 @@ bool admin_pass() {
 }
 
 bool delete_user_sd(String rfid) {
-  bool deleteFileIfExists(String rfid) {
   if (SD.exists(rfid)) {
     if (SD.remove(rfid)) {
       // Serial.println("File deleted successfully.");
