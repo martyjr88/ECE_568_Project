@@ -25,22 +25,25 @@ class LoginRequestHandler(BaseHTTPRequestHandler):
             html += "</table></body></html>"
             self.wfile.write(html.encode("utf-8"))
         elif parsed_path.path == "/submit":
-            # This is the endpoint for ESP32 to submit a key, e.g. /submit?key=user119
+            # This is the endpoint for ESP32 to submit a key and status, e.g. /submit?key=user119&status=Success
             query_params = parse_qs(parsed_path.query)
-            if "key" not in query_params:
-                # No key provided – bad request
+            
+            # Check if both 'key' and 'status' are provided
+            if "key" not in query_params or "status" not in query_params:
                 self.send_response(400)
                 self.end_headers()
-                self.wfile.write(b"Missing 'key' parameter")
+                self.wfile.write(b"Missing 'key' or 'status' parameter")
                 return
-            # Extract the key value
+            
+            # Extract key and status values
             key = query_params["key"][0]
-            # Check against valid keys
-            status = "Success" if key in VALID_KEYS else "Failure"
-            # Log the attempt with current timestamp
+            status = query_params["status"][0]
+
+            # Log the attempt with the current timestamp
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             login_attempts.append((timestamp, key, status))
-            # Respond with a simple text acknowledgment (no specific content needed for ESP32)
+
+            # Respond with a simple acknowledgment
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
@@ -68,6 +71,8 @@ class LoginRequestHandler(BaseHTTPRequestHandler):
                 # If the body is just the raw key
                 key = body_text
             # Determine success or failure
+
+            # ajdust, success or ffailure sent by lock
             status = "Success" if key in VALID_KEYS else "Failure"
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             login_attempts.append((timestamp, key, status))
@@ -82,7 +87,7 @@ class LoginRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"Not Found")
             
 # Set up and start the HTTP server
-server_address = ("0.0.0.0", 8000)  # listen on all network interfaces, port 8000
+server_address = ("172.20.10.6", 80)  # listen on all network interfaces, port 8000
 httpd = HTTPServer(server_address, LoginRequestHandler)
 print(f"Serving HTTP on {server_address[0]} port {server_address[1]}")
 httpd.serve_forever()
