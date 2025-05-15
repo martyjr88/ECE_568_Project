@@ -16,7 +16,7 @@ Hardware Requirements:
 - ESP32 Development Board
 - MFRC522 RFID Reader
 - Adafruit Optical Fingerprint Sensor
-- SD Card Module (optional for logging)
+- SD Card Module
 - Access to a WiFi network
 
 Software Requirements:
